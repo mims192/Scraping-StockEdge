@@ -1,17 +1,19 @@
 import puppeteer from 'puppeteer';
-
+import dotenv from 'dotenv'
+import axios from 'axios'
 import { getStocksFromCSV } from './stocklist.js';
-
 const stocks = await getStocksFromCSV();
 
+dotenv.config();
+const wpApiUrl=process.env.WP_API_DAILY; 
 const scrape = async () => {
   const browser = await puppeteer.launch({
     headless: false,
-    protocolTimeout: 180000,
+    protocolTimeout: 500000,
     defaultViewport: null,
     timeout: 0,
     args: [
-      '--no-sandbox',
+      '--no-sandbox', 
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
@@ -28,7 +30,7 @@ const scrape = async () => {
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
   });
 
-  // Navigate to the initial page first
+  
   await page.goto('https://web.stockedge.com/share/sbi-life-insurance-company/86648?section=deliveries&exchange-name=Both&time-period=Daily', {
     waitUntil: 'networkidle2',
     timeout: 180000
@@ -39,7 +41,7 @@ const scrape = async () => {
 
   const allResults = [];
 
-  // Process each stock one by one
+  
   for (const stock of stocks) {
     try {
       console.log(`Searching for stock: ${stock}`);
@@ -115,7 +117,6 @@ const scrape = async () => {
         console.log("Could not find delivery bars, trying to continue anyway");
       }
 
-      // Extract data from the delivery bars
       const results = await page.evaluate(async () => {
         const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -125,12 +126,12 @@ const scrape = async () => {
         const extractedData = [];
         
         
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < bars.length; i++) {
           try {
             bars[i].dispatchEvent(new MouseEvent('click', { bubbles: true }));
             console.log(`Clicked bar ${i+1}`);
             
-            await wait(10000); // Longer delay for tooltip to appear
+            await wait(10000); 
             
             const tooltipTexts = Array.from(document.querySelectorAll('g[transform^="translate(-35,0)"] text'))
               .map(el => el.textContent.trim());
@@ -148,6 +149,7 @@ const scrape = async () => {
               const vwap = tooltipTexts.find(text => text.includes('VWAP'));
               
               extractedData.push({
+
                 date,
                 deliveredQty,
                 tradedQty,
@@ -155,7 +157,7 @@ const scrape = async () => {
               });
             }
             
-            document.body.click(); // Click away from tooltip
+            document.body.click(); // Click away anywhere
             await wait(2000);
           } catch (error) {
             console.error(`Error processing bar ${i+1}:`, error);
@@ -163,10 +165,13 @@ const scrape = async () => {
         }
         
         return extractedData;
+
       });
       const hold= (ms) => new Promise(resolve => setTimeout(resolve, ms));
       console.log(`Results for ${stock}:`, results);
       allResults.push({ stock, data: results });
+    
+
       await hold(2000);    //wait before next search
       
     } catch (error) {
@@ -176,9 +181,45 @@ const scrape = async () => {
   }
 
   console.log("All results:", JSON.stringify(allResults, null, 2));
-  
+  for(const items of allResults){
+    const wpData = { 
+      stock: items.stock,
+      date: items.data[0].date,
+      deliveredQty: items.data[0].deliveredQty,
+      tradedQty: items.data[0].tradedQty,
+      vwap: items.data[0].vwap  
+    };
+    
+    const stored = await storeInWordPress(wpData);
+    if (stored) {
+      console.log(`Successfully stored "${items.stock}" in WordPress.`);
+    } else if(stored?.duplicate) {
+      console.log(` Skipped duplicate: "${items.stock}"`);
+    } else {
+      console.log(`Failed to store "${items.stock}" in WordPress.`);
+    }
+  }
+
 
   await browser.close();
 };
-
+async function storeInWordPress(data) {
+    try {
+      const response = await axios.post(wpApiUrl, {
+        stock:data.stock,
+        date: data.date,
+        deliveredQty: data.deliveredQty,
+        tradedQty: data.tradedQty,
+        vwap:data.vwap
+       
+      });
+  
+      console.log('Stored in WordPress:', response.data);
+      return true;
+    } catch (error) {
+      console.error('WP API Error:', error.response?.data || error.message);
+      return false;
+    }
+  }
+  
 scrape();

@@ -1,8 +1,11 @@
 import puppeteer from 'puppeteer';
 import { getStocksFromCSV } from './stocklist.js';
-
+import dotenv from 'dotenv'
+import axios from 'axios'
+//const stocks=[ '20 Microns']
 const stocks = await getStocksFromCSV();
-
+dotenv.config();
+const wpApiUrl=process.env.WP_API_NEWS;
 async function scrapeStockNews() {
   console.log('Starting browser...');
   const browser = await puppeteer.launch({
@@ -32,7 +35,7 @@ async function scrapeStockNews() {
   });
 
   try {
-    // Navigate to the initial page first
+   
     console.log('Navigating to initial page...');
     await page.goto('https://web.stockedge.com/share/sbi-life-insurance-company/86648?section=news', {
       waitUntil: 'networkidle2',
@@ -45,7 +48,7 @@ async function scrapeStockNews() {
     const allResults = [];
     const currentYear = new Date().getFullYear();
 
-    // Process each stock one by one
+   
     for (const stock of stocks) {
       try {
         console.log(`🔍 Searching for stock: ${stock}`);
@@ -91,11 +94,11 @@ async function scrapeStockNews() {
         });
         
         if (!clickedResult) {
-          console.log(`⚠️ No matching stock found for: ${stock}`);
+          console.log(` No matching stock found for: ${stock}`);
           continue;
         }
         
-        console.log(`✅ Clicked on stock: ${clickedResult}`);
+        console.log(`Clicked on stock: ${clickedResult}`);
 
         // Wait for navigation to complete - longer timeout
         await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
@@ -103,17 +106,17 @@ async function scrapeStockNews() {
         
         // Get the current URL
         const currentUrl = page.url();
-        console.log(`📌 Navigated to: ${currentUrl}`);
+        console.log(` Navigated to: ${currentUrl}`);
         
-        // Check if we're on the news page, if not, add the section parameter
+        
         if (!currentUrl.includes('section=news')) {
           const newsUrl = `${currentUrl.split('?')[0]}?section=news`;
-          console.log(`🔄 Navigating to news section: ${newsUrl}`);
+          console.log(` Navigating to news section: ${newsUrl}`);
           await page.goto(newsUrl, { waitUntil: 'networkidle2', timeout: 30000 });
           await delay(5000);
         }
 
-        // Extract news information using the original logic
+      
         console.log('Extracting news data...');
         const newsItems = await page.evaluate((maxYear) => {
           const dateElements = document.querySelectorAll('ion-text.sc-ion-label-md.ion-color.ion-color-se-grey-medium.md');
@@ -131,7 +134,7 @@ async function scrapeStockNews() {
               if (yearMatch) {
                 const year = parseInt(yearMatch[1], 10);
                 if (year <= maxYear) {
-                  const key = dateText + '|' + content;  // Unique key by date + content
+                  const key = dateText + '|' + content; 
                   if (!seen.has(key)) {
                     seen.add(key);
                     results.push({ date: dateText, content });
@@ -154,8 +157,24 @@ async function scrapeStockNews() {
       }
     }
 
-    console.log("📑 All news data collected");
+    console.log(" All news data collected");
     console.log(JSON.stringify(allResults, null, 2));
+    for(const items of allResults){
+      const wpData = { 
+        stock: items.stock,
+        date: items.newsItems[0].date,  
+        content: items.newsItems[0].content,
+      };
+      
+      const stored = await storeInWordPress(wpData);
+      if (stored) {
+        console.log(`Successfully stored "${items.stock}" in WordPress.`);
+      } else if(stored?.duplicate) {
+        console.log(` Skipped duplicate: "${items.stock}"`);
+      } else {
+        console.log(`Failed to store "${items.stock}" in WordPress.`);
+      }
+    }
     
     return allResults;
   } catch (error) {
@@ -163,14 +182,13 @@ async function scrapeStockNews() {
     throw error;
   } finally {
     console.log("⏳ Waiting 10 seconds before closing the browser...");
-    await delay(10000); // Wait for 10 seconds before closing
+    await delay(10000); 
     
     await browser.close();
     console.log('Browser closed.');
   }
 }
 
-// Execute the scraping
 async function main() {
   try {
     const scrapedData = await scrapeStockNews();
@@ -178,6 +196,22 @@ async function main() {
     console.log(JSON.stringify(scrapedData, null, 2));
   } catch (error) {
     console.error('Scraping failed:', error);
+  }
+}
+
+async function storeInWordPress(data) {
+  try {
+    const response = await axios.post(wpApiUrl, {
+      stock:data.stock,
+      date: data.date,
+      content:data.content
+    });
+
+    console.log('Stored in WordPress:', response.data);
+    return true;
+  } catch (error) {
+    console.error('WP API Error:', error.response?.data || error.message);
+    return false;
   }
 }
 

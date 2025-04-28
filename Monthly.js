@@ -1,8 +1,11 @@
 import puppeteer from 'puppeteer';
 import { getStocksFromCSV } from './stocklist.js';
-
+import dotenv from 'dotenv'
+import axios from 'axios'
 const stocks = await getStocksFromCSV();
-
+//const stocks=['20 Microns']
+dotenv.config();
+const wpApiUrl=process.env.WP_API_MONTHLY;
 const scrape = async () => {
   const browser = await puppeteer.launch({
     headless: false,
@@ -27,18 +30,16 @@ const scrape = async () => {
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
   });
 
-  // Navigate to the initial page first
   await page.goto('https://web.stockedge.com/share/sbi-life-insurance-company/86648?section=deliveries&exchange-name=Both&time-period=Monthly', {
     waitUntil: 'networkidle2',
     timeout: 180000
   });
 
-  // Wait for the page to be fully loaded
+  
   await delay(5000);
 
   const allResults = [];
 
-  // Process each stock one by one
   for (const stock of stocks) {
     try {
       console.log(`Searching for stock: ${stock}`);
@@ -106,7 +107,7 @@ const scrape = async () => {
         await delay(5000);
       }
 
-      // Wait longer to ensure the delivery chart is loaded
+     
       try {
         await page.waitForSelector('g.deld3bar > rect', { timeout: 20000 });
         
@@ -114,7 +115,7 @@ const scrape = async () => {
         console.log("Could not find delivery bars, trying to continue anyway");
       }
 
-      // Extract data from the delivery bars
+      
       const results = await page.evaluate(async () => {
         const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -154,7 +155,7 @@ const scrape = async () => {
               });
             }
             
-            document.body.click(); // Click away from tooltip
+            document.body.click(); 
             await wait(2000);
           } catch (error) {
             console.error(`Error processing bar ${i+1}:`, error);
@@ -175,9 +176,45 @@ const scrape = async () => {
   }
 
   console.log("All results:", JSON.stringify(allResults, null, 2));
-  
+  for(const items of allResults){
+    const wpData = { 
+      stock: items.stock,
+      date: items.data[0].date,  
+      deliveredQty: items.data[0].deliveredQty,
+      tradedQty: items.data[0].tradedQty,
+      vwap: items.data[0].vwap  
+    };
+    
+    const stored = await storeInWordPress(wpData);
+    if (stored) {
+      console.log(`Successfully stored "${items.stock}" in WordPress.`);
+    } else if(stored?.duplicate) {
+      console.log(` Skipped duplicate: "${items.stock}"`);
+    } else {
+      console.log(`Failed to store "${items.stock}" in WordPress.`);
+    }
+  }
 
   await browser.close();
 };
+async function storeInWordPress(data) {
+  try {
+    const response = await axios.post(wpApiUrl, {
+      stock:data.stock,
+      date: data.date,
+      deliveredQty: data.deliveredQty,
+      tradedQty: data.tradedQty,
+      vwap:data.vwap
+     
+    });
+
+    console.log('Stored in WordPress:', response.data);
+    return true;
+  } catch (error) {
+    console.error('WP API Error:', error.response?.data || error.message);
+    return false;
+  }
+}
+
 
 scrape();

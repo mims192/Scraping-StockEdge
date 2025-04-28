@@ -3,6 +3,11 @@ import puppeteer from 'puppeteer';
 import { getStocksFromCSV } from './stocklist.js';
 
 const stocks = await getStocksFromCSV();
+import dotenv from 'dotenv'
+import axios from 'axios'
+
+dotenv.config();
+const wpApiUrl=process.env.WP_API_CORP;
 
 async function scrapeDividendInfo() {
   const browser = await puppeteer.launch({
@@ -31,7 +36,7 @@ async function scrapeDividendInfo() {
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
   });
 
-  // Navigate to the initial page first
+
   await page.goto('https://web.stockedge.com/share/dr-lal-pathlabs/15890?section=corp-actions', {
     waitUntil: 'networkidle2',
     timeout: 180000
@@ -42,7 +47,7 @@ async function scrapeDividendInfo() {
 
   const allResults = [];
 
-  // Process each stock one by one
+
   for (const stock of stocks) {
     try {
       console.log(`Searching for stock: ${stock}`);
@@ -61,12 +66,12 @@ async function scrapeDividendInfo() {
       });
       await delay(1000);
       
-      // Type the stock name slowly with delay between keys
+      // Type the stock name 
       for (const char of stock) {
         await page.type('input.searchbar-input', char, { delay: 100 });
       }
       
-      // Wait longer for search results to appear and stabilize
+      // Waiting longer for search results to appear and stabilize
       await delay(3000);
       await page.waitForSelector('ion-item[button]', { timeout: 15000 });
       await delay(2000);
@@ -172,13 +177,46 @@ async function scrapeDividendInfo() {
 
   console.log("All dividend results:", JSON.stringify(allResults, null, 2));
   console.log(" Waiting 10 seconds before closing the browser...");
-  await delay(10000); // Wait for 10 seconds before closing
+  for(const items of allResults){
+    const wpData = { 
+      stock: items.stock,
+      exDate: items.dividendData[0].exDate, 
+      recordDate: items.dividendData[0].recordDate,
+      dividendDetails: items.dividendData[0].dividendDetails,
+    };
+    
+    const stored = await storeInWordPress(wpData);
+    if (stored) {
+      console.log(`Successfully stored "${items.stock}" in WordPress.`);
+    } else if(stored?.duplicate) {
+      console.log(` Skipped duplicate: "${items.stock}"`);
+    } else {
+      console.log(`Failed to store "${items.stock}" in WordPress.`);
+    }
+  }
   
   await browser.close();
   return allResults;
 }
 
-// Execute the scraping function
+async function storeInWordPress(data) {
+  try {
+    const response = await axios.post(wpApiUrl, {
+      stock: data.stock,
+      exDate: data.exDate,
+      recordDate: data.recordDate,
+      dividendDetails: data.dividendDetails
+    });
+
+    console.log('Stored in WordPress:', response.data);
+    return true;
+  } catch (error) {
+    console.error('WP API Error:', error.response?.data || error.message);
+    return false;
+  }
+}
+
+
 scrapeDividendInfo().then(results => {
-  console.log("✅ Scraping completed.");
+  console.log("Scraping completed.");
 });

@@ -1,8 +1,11 @@
-import puppeteer from 'puppeteer';
-import { getStocksFromCSV } from './stocklist.js';
+import puppeteer from 'puppeteer';import { getStocksFromCSV } from './stocklist.js';
 
 const stocks = await getStocksFromCSV();
+import dotenv from 'dotenv'
+import axios from 'axios'
 
+dotenv.config();
+const wpApiUrl=process.env.WP_API_FEED;
 async function scrapeStockFeeds() {
   console.log('Starting browser...');
   const browser = await puppeteer.launch({
@@ -44,10 +47,10 @@ async function scrapeStockFeeds() {
 
     const allResults = [];
 
-    // Process each stock one by one
+  
     for (const stock of stocks) {
       try {
-        console.log(`🔍 Searching for stock: ${stock}`);
+        console.log(`Searching for stock: ${stock}`);
         
         // Wait for the page to be completely loaded
         await delay(3000);
@@ -90,11 +93,11 @@ async function scrapeStockFeeds() {
         });
         
         if (!clickedResult) {
-          console.log(`⚠️ No matching stock found for: ${stock}`);
+          console.log(` No matching stock found for: ${stock}`);
           continue;
         }
         
-        console.log(`✅ Clicked on stock: ${clickedResult}`);
+        console.log(` Clicked on stock: ${clickedResult}`);
 
         // Wait for navigation to complete - longer timeout
         await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
@@ -102,12 +105,12 @@ async function scrapeStockFeeds() {
         
         // Get the current URL
         const currentUrl = page.url();
-        console.log(`📌 Navigated to: ${currentUrl}`);
+        console.log(`Navigated to: ${currentUrl}`);
         
-        // Check if we're on the feeds page, if not, add the section parameter
+       
         if (!currentUrl.includes('section=feeds')) {
           const feedsUrl = `${currentUrl.split('?')[0]}?section=feeds`;
-          console.log(`🔄 Navigating to feeds section: ${feedsUrl}`);
+          console.log(` Navigating to feeds section: ${feedsUrl}`);
           await page.goto(feedsUrl, { waitUntil: 'networkidle2', timeout: 30000 });
           await delay(5000);
         }
@@ -117,10 +120,10 @@ async function scrapeStockFeeds() {
         try {
           await page.waitForSelector('ion-item.item', { timeout: 20000 });
         } catch (e) {
-          console.log("⚠️ Could not find feed items, trying to continue anyway");
+          console.log("Could not find feed items, trying to continue anyway");
         }
 
-        // Extract feed information using the original logic
+        
         console.log('Extracting feed data...');
         const feedItems = await page.evaluate(() => {
           const results = [];
@@ -128,16 +131,19 @@ async function scrapeStockFeeds() {
           const listItems = document.querySelectorAll('ion-item.item');
           
           listItems.forEach(item => {
-            const dateElement = item.querySelector('ion-text');
-            const date = dateElement ? dateElement.textContent.trim() : null;
+            const sourceElement = item.querySelector('ion-text');
+            const source = sourceElement ? sourceElement.textContent.trim() : null;
             
             const contentElement = item.querySelector('p');
             const content = contentElement ? contentElement.textContent.trim() : null;
             
-            // Create an object with the extracted data
+            const dateElement=item.querySelector('ion-col.ion-text-end ion-text')
+            const date=dateElement ? dateElement.textContent.trim() : null;
+          
             if (date || content) {
               results.push({
                 date,
+                source,
                 content
               });
             }
@@ -146,33 +152,51 @@ async function scrapeStockFeeds() {
           return results;
         });
 
-        console.log(`📊 Scraped ${feedItems.length} feed items for ${stock}`);
+        console.log(` Scraped ${feedItems.length} feed items for ${stock}`);
         allResults.push({ stock, feedItems });
         await delay(2000); // wait before next search
         
       } catch (error) {
-        console.log(`❌ Failed to extract feed data for ${stock}:`, error.message);
+        console.log(` Failed to extract feed data for ${stock}:`, error.message);
         // Continue with the next stock even if this one fails
       }
     }
 
-    console.log("📑 All feed data collected");
+    console.log("All feed data collected");
     console.log(JSON.stringify(allResults, null, 2));
+    for(const items of allResults){
+      const wpData = { 
+        stock: items.stock,
+        date: items.feedItems[0].date, 
+        source:items.feedItems[0].source,
+        content: items.feedItems[0].content,
+      };
+      
+      const stored = await storeInWordPress(wpData);
+      if (stored) {
+        console.log(`Successfully stored "${items.stock}" in WordPress.`);
+      } else if(stored?.duplicate) {
+        console.log(` Skipped duplicate: "${items.stock}"`);
+      } else {
+        console.log(`Failed to store "${items.stock}" in WordPress.`);
+      }
+    }
     
+
     return allResults;
   } catch (error) {
     console.error('Error during scraping:', error);
     throw error;
   } finally {
-    console.log("⏳ Waiting 10 seconds before closing the browser...");
-    await delay(10000); // Wait for 10 seconds before closing
+    console.log(" Waiting 10 seconds before closing the browser...");
+    await delay(10000);
     
     await browser.close();
     console.log('Browser closed.');
   }
 }
 
-// Execute the scraping
+
 async function main() {
   try {
     const scrapedData = await scrapeStockFeeds();
@@ -180,6 +204,22 @@ async function main() {
     console.log(JSON.stringify(scrapedData, null, 2));
   } catch (error) {
     console.error('Scraping failed:', error);
+  }
+}
+async function storeInWordPress(data) {
+  try {
+    const response = await axios.post(wpApiUrl, {
+      stock:data.stock,
+      date: data.date,
+      source:data.source,
+      content:data.content
+    });
+
+    console.log('Stored in WordPress:', response.data);
+    return true;
+  } catch (error) {
+    console.error('WP API Error:', error.response?.data || error.message);
+    return false;
   }
 }
 

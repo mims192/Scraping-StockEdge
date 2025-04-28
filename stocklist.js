@@ -14,12 +14,12 @@ function getStocksFromCSV() {
       .on('data', (row) => {
         console.log('Processing row:', row);
         
-        // Based on your CSV format where Symbol is the second column
+        
         if (row.Symbol) {
           console.log('Found Symbol column:', row.Symbol);
           stocks.push(row.Symbol);
         } else if (Object.values(row)[1]) {
-          // If the csv-parser doesn't recognize the header properly
+       
           console.log('Using second column value:', Object.values(row)[1]);
           stocks.push(Object.values(row)[1]);
         }
@@ -37,5 +37,4 @@ function getStocksFromCSV() {
   });
 }
 
-// Export the function to get stocks
 export { getStocksFromCSV };
