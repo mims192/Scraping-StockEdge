@@ -165,6 +165,11 @@ async function scrapeStockFeeds() {
     console.log("All feed data collected");
     console.log(JSON.stringify(allResults, null, 2));
     for(const items of allResults){
+      if (!items.feedItems || items.feedItems.length === 0) {
+        console.log(`No feed items for "${items.stock}", skipping...`);
+        continue;
+      }
+
       const wpData = { 
         stock: items.stock,
         date: items.feedItems[0].date, 
@@ -197,7 +202,7 @@ async function scrapeStockFeeds() {
 }
 
 
-async function main() {
+async function feed() {
   try {
     const scrapedData = await scrapeStockFeeds();
     console.log('Scraped data:');
@@ -223,4 +228,9 @@ async function storeInWordPress(data) {
   }
 }
 
-main();
+
+if (process.argv[1] === import.meta.url) {
+  feed();
+}
+
+export default feed;

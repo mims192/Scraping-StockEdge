@@ -1,9 +1,9 @@
 import puppeteer from 'puppeteer';
 import dotenv from 'dotenv'
 import axios from 'axios'
-import { getStocksFromCSV } from './stocklist.js';
-const stocks = await getStocksFromCSV();
-
+//import { getStocksFromCSV } from './stocklist.js';
+//const stocks = await getStocksFromCSV();
+const stocks=['20Microns']
 dotenv.config();
 const wpApiUrl=process.env.WP_API_DAILY; 
 const scrape = async () => {
@@ -31,7 +31,7 @@ const scrape = async () => {
   });
 
   
-  await page.goto('https://web.stockedge.com/share/sbi-life-insurance-company/86648?section=deliveries&exchange-name=Both&time-period=Daily', {
+  await page.goto('https://web.stockedge.com/share/manaksia-steels/15443?section=deliveries&time-period=Daily&exchange-name=Both', {
     waitUntil: 'networkidle2',
     timeout: 180000
   });
@@ -126,12 +126,12 @@ const scrape = async () => {
         const extractedData = [];
         
         
-        for (let i = 0; i < bars.length; i++) {
+        for (let i = 0; i < 20; i++) {
           try {
             bars[i].dispatchEvent(new MouseEvent('click', { bubbles: true }));
             console.log(`Clicked bar ${i+1}`);
             
-            await wait(10000); 
+            await wait(1000); 
             
             const tooltipTexts = Array.from(document.querySelectorAll('g[transform^="translate(-35,0)"] text'))
               .map(el => el.textContent.trim());
@@ -182,6 +182,10 @@ const scrape = async () => {
 
   console.log("All results:", JSON.stringify(allResults, null, 2));
   for(const items of allResults){
+    if (!items.data || items.data.length === 0) {
+      console.log(`No data items for "${items.stock}", skipping...`);
+      continue;
+    }
     const wpData = { 
       stock: items.stock,
       date: items.data[0].date,
@@ -221,5 +225,8 @@ async function storeInWordPress(data) {
       return false;
     }
   }
-  
-scrape();
+   if (process.argv[1] === import.meta.url) {
+    scrape();
+  }
+
+export default scrape;

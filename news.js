@@ -2,7 +2,7 @@ import puppeteer from 'puppeteer';
 import { getStocksFromCSV } from './stocklist.js';
 import dotenv from 'dotenv'
 import axios from 'axios'
-//const stocks=[ '20 Microns']
+//const stocks=[ '3m India']
 const stocks = await getStocksFromCSV();
 dotenv.config();
 const wpApiUrl=process.env.WP_API_NEWS;
@@ -10,7 +10,7 @@ async function scrapeStockNews() {
   console.log('Starting browser...');
   const browser = await puppeteer.launch({
     headless: false,
-    protocolTimeout: 180000,
+ 
     defaultViewport: null,
     timeout: 0,
     args: [
@@ -37,7 +37,7 @@ async function scrapeStockNews() {
   try {
    
     console.log('Navigating to initial page...');
-    await page.goto('https://web.stockedge.com/share/sbi-life-insurance-company/86648?section=news', {
+    await page.goto('https://web.stockedge.com/share/manaksia-steels/15443?section=deliveries&time-period=Daily&exchange-name=Both', {
       waitUntil: 'networkidle2',
       timeout: 180000
     });
@@ -57,7 +57,7 @@ async function scrapeStockNews() {
         await delay(3000);
         
         // Click on the search bar
-        await page.waitForSelector('input.searchbar-input', { timeout: 15000 });
+        await page.waitForSelector('input.searchbar-input', { timeout: 30000 });
         await page.click('input.searchbar-input');
         await delay(1000);
         
@@ -73,9 +73,9 @@ async function scrapeStockNews() {
         }
         
         // Wait longer for search results to appear and stabilize
-        await delay(3000);
-        await page.waitForSelector('ion-item[button]', { timeout: 15000 });
-        await delay(2000);
+        await delay(1000);
+        await page.waitForSelector('ion-item[button]', { timeout: 30000 });
+        
         
         // Click on the first stock result
         const clickedResult = await page.evaluate(() => {
@@ -101,8 +101,8 @@ async function scrapeStockNews() {
         console.log(`Clicked on stock: ${clickedResult}`);
 
         // Wait for navigation to complete - longer timeout
-        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
-        await delay(8000);
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 50000 });
+        await delay(5000);
         
         // Get the current URL
         const currentUrl = page.url();
@@ -112,7 +112,7 @@ async function scrapeStockNews() {
         if (!currentUrl.includes('section=news')) {
           const newsUrl = `${currentUrl.split('?')[0]}?section=news`;
           console.log(` Navigating to news section: ${newsUrl}`);
-          await page.goto(newsUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+          await page.goto(newsUrl, { waitUntil: 'networkidle2', timeout: 50000 });
           await delay(5000);
         }
 
@@ -147,12 +147,12 @@ async function scrapeStockNews() {
           return results;
         }, currentYear);
 
-        console.log(`📊 Scraped ${newsItems.length} news items for ${stock}`);
+        console.log(`Scraped ${newsItems.length} news items for ${stock}`);
         allResults.push({ stock, newsItems });
         await delay(2000); // wait before next search
         
       } catch (error) {
-        console.log(`❌ Failed to extract news data for ${stock}:`, error.message);
+        console.log(`Failed to extract news data for ${stock}:`, error.message);
         // Continue with the next stock even if this one fails
       }
     }
@@ -160,6 +160,11 @@ async function scrapeStockNews() {
     console.log(" All news data collected");
     console.log(JSON.stringify(allResults, null, 2));
     for(const items of allResults){
+      if (!items.newsItems || items.newsItems.length === 0) {
+        console.log(`No news items for "${items.stock}", skipping...`);
+        continue;
+      }
+      
       const wpData = { 
         stock: items.stock,
         date: items.newsItems[0].date,  
@@ -181,7 +186,7 @@ async function scrapeStockNews() {
     console.error('Error during scraping:', error);
     throw error;
   } finally {
-    console.log("⏳ Waiting 10 seconds before closing the browser...");
+    console.log("Waiting 10 seconds before closing the browser...");
     await delay(10000); 
     
     await browser.close();
@@ -189,7 +194,7 @@ async function scrapeStockNews() {
   }
 }
 
-async function main() {
+async function news() {
   try {
     const scrapedData = await scrapeStockNews();
     console.log('Scraped data:');
@@ -215,4 +220,10 @@ async function storeInWordPress(data) {
   }
 }
 
-main();
+
+
+if (process.argv[1] === import.meta.url) {
+  news();
+}
+
+export default news;

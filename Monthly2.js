@@ -6,10 +6,10 @@ const stocks = await getStocksFromCSV();
 //const stocks=['20 Microns']
 dotenv.config();
 const wpApiUrl=process.env.WP_API_MONTHLY;
-const scrapeMonthly = async () => {
+const scrapeMonthly2 = async () => {
   const browser = await puppeteer.launch({
     headless: false,
-  
+
     defaultViewport: null,
     timeout: 0, 
     args: [
@@ -104,7 +104,7 @@ const scrapeMonthly = async () => {
         const deliveryUrl = `${currentUrl.split('?')[0]}?section=deliveries&exchange-name=Both&time-period=Monthly`;
         console.log(`Adding deliveries section: ${deliveryUrl}`);
         await page.goto(deliveryUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-        await delay(4000);
+        await delay(5000);
       }
 
      
@@ -125,12 +125,12 @@ const scrapeMonthly = async () => {
         const extractedData = [];
         
         
-        for (let i = 1; i < 15; i++) {
+        for (let i = bars.length -15 ; i < bars.length; i++) {
           try {
             bars[i].dispatchEvent(new MouseEvent('click', { bubbles: true }));
             console.log(`Clicked bar ${i+1}`);
             
-            await wait(1000); // Longer delay for tooltip to appear
+            await wait(10000); // Longer delay for tooltip to appear
             
             const tooltipTexts = Array.from(document.querySelectorAll('g[transform^="translate(-35,0)"] text'))
               .map(el => el.textContent.trim());
@@ -221,9 +221,8 @@ async function storeInWordPress(data) {
 }
 
 
-
 if (process.argv[1] === import.meta.url) {
-  scrapeMonthly();
+  scrapeMonthly2();
 }
 
-export default scrapeMonthly;
+export default scrapeMonthly2;

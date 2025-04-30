@@ -178,6 +178,10 @@ async function scrapeDividendInfo() {
   console.log("All dividend results:", JSON.stringify(allResults, null, 2));
   console.log(" Waiting 10 seconds before closing the browser...");
   for(const items of allResults){
+    if (!items.dividendData || items.dividendData.length === 0) {
+      console.log(`No corp action items for "${items.stock}", skipping...`);
+      continue;
+    }
     const wpData = { 
       stock: items.stock,
       exDate: items.dividendData[0].exDate, 
@@ -217,6 +221,10 @@ async function storeInWordPress(data) {
 }
 
 
-scrapeDividendInfo().then(results => {
-  console.log("Scraping completed.");
-});
+if (import.meta.url === `file://${process.argv[1]}`) {
+  scrapeDividendInfo().then(results => {
+    console.log("Scraping completed.");
+  });
+}
+
+export { scrapeDividendInfo };
