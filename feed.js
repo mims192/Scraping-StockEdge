@@ -9,8 +9,8 @@ const wpApiUrl=process.env.WP_API_FEED;
 async function scrapeStockFeeds() {
   console.log('Starting browser...');
   const browser = await puppeteer.launch({
-    headless: false,
-    protocolTimeout: 180000,
+    headless: true,
+   
     defaultViewport: null,
     timeout: 0,
     args: [

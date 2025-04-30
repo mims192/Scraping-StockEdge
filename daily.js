@@ -8,8 +8,8 @@ dotenv.config();
 const wpApiUrl=process.env.WP_API_DAILY; 
 const scrape = async () => {
   const browser = await puppeteer.launch({
-    headless: false,
-    protocolTimeout: 500000,
+    headless: true,
+    
     defaultViewport: null,
     timeout: 0,
     args: [

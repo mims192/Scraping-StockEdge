@@ -11,8 +11,8 @@ const wpApiUrl=process.env.WP_API_CORP;
 
 async function scrapeDividendInfo() {
   const browser = await puppeteer.launch({
-    headless: false,
-    protocolTimeout: 180000,
+    headless: true,
+   
     defaultViewport: null,
     timeout: 0,
     args: [

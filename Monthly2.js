@@ -8,7 +8,7 @@ dotenv.config();
 const wpApiUrl=process.env.WP_API_MONTHLY;
 const scrapeMonthly2 = async () => {
   const browser = await puppeteer.launch({
-    headless: false,
+    headless: true,
 
     defaultViewport: null,
     timeout: 0, 

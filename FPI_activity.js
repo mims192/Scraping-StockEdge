@@ -7,7 +7,7 @@ const wpApiUrl = process.env.WP_API_FPI_ACTIVITY;
 
 const scrapeFPI= async () => {
   const browser = await puppeteer.launch({
-    headless: 'new',
+    headless: true,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
