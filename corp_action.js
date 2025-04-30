@@ -56,7 +56,7 @@ async function scrapeDividendInfo() {
       await delay(3000);
       
       // Click on the search bar
-      await page.waitForSelector('input.searchbar-input', { timeout: 15000 });
+      await page.waitForSelector('input.searchbar-input', { timeout: 30000 });
       await page.click('input.searchbar-input');
       await delay(1000);
       
@@ -73,7 +73,7 @@ async function scrapeDividendInfo() {
       
       // Waiting longer for search results to appear and stabilize
       await delay(3000);
-      await page.waitForSelector('ion-item[button]', { timeout: 15000 });
+      await page.waitForSelector('ion-item[button]', { timeout: 30000 });
       await delay(2000);
       
       // Click on the first stock result
